@@ -1,12 +1,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/cheggaaa/pb/v3"
 )
@@ -94,11 +96,14 @@ func Download(url string, refererURL string, outputPath string) error {
 }
 
 func getTotalFileSize(url string, refererURL string) (int64, error) {
+	// some url don't support HEAD method to get content length.
+	// use Content-Range header to get that file size.
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return 0, err
 	}
 	req.Header.Set("Referer", refererURL)
+	req.Header.Set("Range", "bytes=0-0")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -106,13 +111,18 @@ func getTotalFileSize(url string, refererURL string) (int64, error) {
 	}
 	defer resp.Body.Close()
 
-	contentLengthStr := resp.Header.Get("Content-Length")
-	var totalSize int64
-	if contentLengthStr != "" {
-		totalSize, err = strconv.ParseInt(contentLengthStr, 10, 64)
-		if err != nil {
-			return 0, err
-		}
+	// bytes start-end/total
+	contentRange := resp.Header.Get("Content-Range")
+	if contentRange == "" {
+		return 0, errors.New("Content-Range header not found")
+	}
+	parts := strings.Split(contentRange, "/")
+	if len(parts) != 2 {
+		return 0, errors.New("Content-Range header format invalid")
+	}
+	totalSize, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse total size from Content-Range: %v", err)
 	}
 	return totalSize, nil
 }
