@@ -6,7 +6,7 @@ bili-audio-downloader
 # 安装
 
 ```shell
-go install github.com/hxzll/bili-audio-downloader
+go install github.com/hxzll/bili-audio-downloader@latest
 ```
 
 # 使用
